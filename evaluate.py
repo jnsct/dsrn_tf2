@@ -1,40 +1,57 @@
 import tensorflow as tf
-import skimage
-import skimage.io
-import skimage.color
-import skimage.measure
-
-flags = tf.app.flags
-FLAGS = flags.FLAGS
+import matplotlib.pyplot as plt
+import numpy as np
 
 # Task specification.
-flags.DEFINE_string('hr_flist', '',
-                    'file_list containing the training data.')
-flags.DEFINE_string('prediction_dir', '',
-                    'directory containing the predicted images.')
+hr_flist = './data/hr_flist'
+lr_flist = './data/lr_flist'
+scale = 2
 
+# Model and data preprocessing.
+data_name  = 'data'
+model_name = 'model_recurrent_s2_u128_avg_t7-keras'
+output_dir = 'ouput'
+upsampling_method = 'bicubic'
 
-def compute_psnr(predction, ground_truth):
-  pred_y = skimage.color.rgb2ycbcr(prediction)[:,:,0:1]
-  gt_y = skimage.color.rgb2ycbcr(ground_truth)[:,:,0:1]
-  return skimage.measure.compare_psnr(pred_y, gt_y, data_range=255)
+data = __import__(data_name)
+mdl = __import__(model_name)
 
-def main():
-  flist = open(FLAGS.hr_flist, 'r').read().splitlines()
-  total_images = 0
-  total_psnr = .0
-  for fname in flist:
-    pred_fname = os.path.join(FLAGS.prediction_dir,
-                              os.path.basename(fname))
-    gt_image = skimage.io.imread(fname)
-    pred_image = skimage.io.imread(pred_fname)
-    psnr = compute_psnr(pred_image, gt_image)
-    print("Image name: %s, PSNR=%f", os.path.basename(fname),
-          psnr)
-    total_images += 1
-    total_psnr += psnr
+model = mdl.build_model(scale, training=False, reuse=False)
+model.compile(optimizer='adam', loss='mse')
 
-  print("Average PSNR is %f", total_psnr/total_images)
+path='./weights/Weights.ckpt'
+model.load_weights(path)
 
-if __name__ == '__main__':
-  tf.app.run()
+target, source = data.dataset(hr_flist, lr_flist, scale, upsampling_method, residual=False)
+target, source = np.array(target), np.array(source)
+
+target, source = data.dataset(hr_flist, lr_flist, scale, upsampling_method, residual=False)
+split = int(len(source) * .80)
+test  = tf.data.Dataset.from_tensor_slices((source[split:],target[split:]))
+
+print('Evaluating Model...')
+results = model.evaluate(test)
+
+print('Making Predictions...')
+predictions = model.predict(tf.data.Dataset.from_tensor_slices((source[split:])))
+
+# generate a random sample of indexes to visually check results
+rng = np.random.default_rng()
+numbers = rng.choice(len(predictions), size=10, replace=False)
+
+t = np.concatenate(target[split:], axis=0)
+for i in numbers:
+
+    plt.figure(figsize=(10, 4))
+    plt.subplot(1, 2, 1)
+    plt.imshow(predictions[i])
+    plt.title('Prediction')
+    plt.axis('off')
+    
+    plt.subplot(1, 2, 2)
+    plt.imshow(t[i])
+    plt.title('Target')
+    plt.axis('off')
+    
+    plt.tight_layout()
+    plt.show()
