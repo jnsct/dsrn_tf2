@@ -1,4 +1,4 @@
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 import numpy as np
 from functools import partial
 
@@ -15,14 +15,15 @@ def get_resize_func(method):
 
 
 def image_to_patches(image, scale=1):
-  patch_height = 108 / scale
-  patch_width = 108 / scale
-  patch_overlap = 12 / scale
+  patch_height = tf.cast(108 / scale, tf.int32)
+  patch_width = tf.cast(108 / scale, tf.int32)
+  patch_overlap = tf.cast(12 / scale, tf.int32)
   patches = tf.extract_image_patches(
       image, [1, patch_height, patch_width, 1],
       [1, patch_height - 2 * patch_overlap, patch_width - 2 * patch_overlap, 1],
       [1, 1, 1, 1],
       padding='VALID')
+
   return tf.reshape(patches, [
       tf.shape(patches)[0] * tf.shape(patches)[1] * tf.shape(patches)[2],
       patch_height, patch_width, 3
@@ -31,9 +32,10 @@ def image_to_patches(image, scale=1):
 
 def crop_center(image, target_shape):
   origin_shape = tf.shape(image)[1:3]
+    
   return tf.slice(image, [
-      0, (origin_shape[0] - target_shape[0]) / 2,
-      (origin_shape[1] - target_shape[1]) / 2, 0
+      0, tf.cast((origin_shape[0] - target_shape[0]) / 2,tf.int32),
+      tf.cast((origin_shape[1] - target_shape[1]) / 2,tf.int32), 0
   ], [-1, target_shape[0], target_shape[1], -1])
 
 
